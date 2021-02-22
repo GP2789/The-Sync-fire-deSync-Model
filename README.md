@@ -1,4 +1,8 @@
+IMPORTANT: UPDATE FOR NEUROPSCYHOLOGIA SUBMISSION ARRIVING ON THE WEEK OF 1ST MARCH
+
+
 # The-Sync-fire-deSync-Model
+
 Deciphering episodic content from cortical alpha oscillations.
 
 This code will run the simulations used for the Sync-fire deSync model paper submission. 
