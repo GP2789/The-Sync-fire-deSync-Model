@@ -1,154 +1,191 @@
 function [  ] = content_specificity( filename )
 % This will analysis similarity across and between patterns to reproduce
 % Figure 5 of the paper.
-
+%% LOAD FILES & INITIALISE
 load([filename '/Data/parameters' ]);
+load([filename '/Data/patterns' ]);
+%load([filename '/pattern_data.mat']);
+load([filename '/Processed Data/pattern_info.mat']);
+conditions = {has_a_miss, double_bindings, all_else};
+conditions_n = {'has_miss', 'double_binding', 'other_hits'};
 
-if(par.B > 1) 
-    %% PHASE ANALYSIS OVER/BETWEEN PATTERNS
-    if(exist([filename '/Processed Data/similarity_data.mat'],'file') ~= 2)
-        % LOAD FILES & INITIALISE
-        load([filename '/Processed Data/freq_data.mat']);
-        par.sim_length = par.pre_stim_L * 2 + par.NC_stim_L;
-        POW.DL = zeros(size(POW_all.DL.NC.B1)); POW.AL = zeros(size(POW_all.AL.NC.B1)); 
-        sim_to_diff_all = []; sim_to_same_all = [];
-        h2 = waitbar(0, 'Phase Compare', 'Units', 'normalized', 'Position', [0.5 0.55 0.2 0.1]);
-        
-        for b = 1:par.B % loop over patterns
-            POW.DL = POW.DL + POW_all.DL.NC.(['B' int2str(b)]);
-            POW.AL = POW.AL + POW_all.AL.NC.(['B' int2str(b)]);
-
-            stim_L =  par.pre_stim_L: par.pre_stim_L + max(par.NC_stims_t_all{b}{1}{1}) + 500;
-
-            X_L = round(length(stim_L)/2):round(par.sim_length-length(stim_L)/2);
-            if(par.B > 1); B_n = ['/B' int2str(b)]; else; B_n = []; end
-            for L = 1:par.n_SG_NC
-                if(par.n_SG_NC <= 1); nL = ''; else; nL = ['_L' int2str(L)]; end
-                sim_to_same = zeros(par.trials, par.sim_length);
-                sim_to_diff = zeros(par.trials, par.sim_length);
-
-                % CALCULATE RSA SIMILARITY BETWEEN PATTERNS
-                for t2 = 1:par.trials % loop through all trials
-                   phase_DL = PHASE.DL.(['NC' nL]).(['B' int2str(b)]).(['T' int2str(t2)])(stim_L);
-                   % TO SAME PATTERNS (TRIAL VARIATION)
-                   to_same_t = zeros(par.trials, par.sim_length);
-                   for t3 = 1:par.trials % loop through all other trials
-                       phase_AL = PHASE.AL.(['NC' nL]).(['B' int2str(b)]).(['T' int2str(t3)]);
-                       to_same_t(t3, X_L) = phase_compare( phase_AL, phase_DL );
-                   end
-                   sim_to_same(t2, :) = mean(to_same_t, 1);
-                   
-                   % TO DIFFERENT PATTERNS MEAN (PATTERN VARIATION)
-                   to_diff_p = zeros(par.B-1, par.sim_length); 
-                   if(par.B > 1) 
-                       i = 1;
-                       for b2 = 1:par.B % loop through all other patterns
-                           if(b2 ~= b)
-                               to_diff_t = zeros(par.trials, par.sim_length);
-                               for t3 = 1:par.trials % loop through all trials
-                                   phase_AL_B = PHASE.AL.(['NC' nL]).(['B' int2str(b2)]).(['T' int2str(t3)]);
-                                   to_diff_t(t3, X_L) = phase_compare( phase_AL_B, phase_DL );
-                               end
-                               to_diff_p(i, :) = mean(to_diff_t, 1);
-                               i = i + 1;
-                           end
-                       end
-                   end
-                   sim_to_diff(t2, :) = mean(to_diff_p, 1);
-                end
-                % RECORD VARIABLES
-                if(b == 1); content_spec = zeros(par.B, size(sim_to_same, 2)); end
-                content_spec(b, :) = mean(sim_to_same,1) - mean(sim_to_diff, 1); % content specificity
-                sim_to_same_all = [sim_to_same_all; sim_to_same]; % concatenate similarity to same pattern
-                sim_to_diff_all = [sim_to_diff_all; sim_to_diff]; % concatenate similarity to other patterns
-            end
-            waitbar(b / par.B, h2);
-        end
-        close(h2);
-        % SAVE VARIABLES
-        save([filename '/Processed Data/similarity_data.mat'], 'freq', 'sim_to_same_all', 'sim_to_diff_all', 'content_spec', 'POW')
-    else; load([filename '/Processed Data/similarity_data.mat'])
+par.sim_length = par.pre_stim_L * 2 + par.NC_stim_L;
+if(exist([filename '/Processed Data/power_phase_data.mat'],'file')~=2)
+    %% find ID of similar patterns for each pattern
+    win = 50; % (lags of +/- 50 ms)
+    same_trial = cell(size(patterns_t,1),1);
+    patterns = patterns_t - patterns_t(:,1) + 1;
+    for i = 1:size(patterns_t,1)
+        pat_diff = patterns - patterns(i,:);
+        same_trial{i} = find(all(abs(pat_diff) <= win,2));
+        same_trial{i}(same_trial{i} == i) = [];
     end
-    
-    %% BOOTSTRAP AND FILTER DATA
-    [to_same_L, to_same_U, to_same_M] = bootstrap( sim_to_same_all, 1000, []); 
-    [to_diff_L, to_diff_U, to_diff_M] = bootstrap( sim_to_diff_all, 1000, []);
-    to_same_L = filter(ones(1,50)/50, 1, to_same_L); to_same_M = filter(ones(1,50)/50, 1, to_same_M); to_same_U = filter(ones(1,50)/50, 1, to_same_U);
-    to_diff_L = filter(ones(1,50)/50, 1, to_diff_L); to_diff_M = filter(ones(1,50)/50, 1, to_diff_M); to_diff_U = filter(ones(1,50)/50, 1, to_diff_U);
-    
-    stim_L2 =  par.pre_stim_L-1000: par.pre_stim_L + par.NC_stim_L + 1000;
-    POW.DL = POW.DL(:,stim_L2) / par.B; POW.AL = POW.AL(:,stim_L2) / par.B;
-    T2 = ((min(stim_L2):max(stim_L2))-par.pre_stim_L)/1000; 
-    pow_lim = [1 15]; 
-    pow_line = pow_lim(1):0.01:pow_lim(2);
-    
-    %% PLOT DATA
-    fig = figure(1); set(fig, 'Position', [0 0 600 600]);
-    for n = 1 : 2
-        %% POWER DIFFERENCES
-        ax(n) = subplot(9, 10, [11:15 21:25 31:35 41:45] + (n-1)*5); 
-        x = find(T2 >= 0, 1, 'first'); 
-        y = [find(freq.NC <= pow_lim(1), 1, 'first') find(freq.NC >= pow_lim(2), 1, 'first')];
-        bs_pow = POW.([par.sim_order_n{n}]); bs_pow = bs_pow - mean(bs_pow(:, 1:x), 2);
-        imagesc(T2, freq.NC(y(1):y(2)), bs_pow(y(1):y(2), :)); set(gca,'YDir','normal'); 
-        box on; ylim(pow_lim);
-        hold on; plot(zeros(length(pow_line), 1), pow_line, 'k-');
-        ylabel('frequency (Hz)'); box on; 
-        if(n==1); cb1 = colorbar; xlabel('time (s)'); else; xticklabels({}); set(ax(n), 'yaxislocation','right'); end
-        xlim([min(T2) max(T2)]);
+    %% extract phase info by stimuli centred window
+    des_pre_stim_sec = 3; pre_stim_L = des_pre_stim_sec*1000; win = 750;
+    phase_DL = zeros(par.B, par.trials, par.pre_stim_L*2);
+    phase_AL = zeros(par.B, par.trials, pre_stim_L*2);
+    fprintf('importing phase & power data ... \n'); tic
+    for b = 1:par.B % loop over patterns
+        load([filename '/Processed Data/freq_data_P' int2str(b) '.mat']);
+        if(b == 1)
+            POW.DL = zeros(size(POW_all.DL.NC)); POW.AL = zeros(size(POW_all.AL.NC));
+        end
+        POW.DL = POW.DL + POW_all.DL.NC;
+        POW.AL = POW.AL + POW_all.AL.NC;
         
-        %% PHASE DIFFERENCE
-        if(n==2)
-            ax(6) = subplot(9, 10, [56:60 66:70]); hold on; box on;
-            % PLOT SIMILARITY TO OTHER PATTERNS
-            fill([T2 fliplr(T2)], [to_diff_L(stim_L2) fliplr(to_diff_U(stim_L2))], 'k', 'edgecolor', 'none'); alpha(0.3);
-            h=[]; h(1) = plot(T2, to_diff_M(stim_L2), 'k', 'linewidth', 2);
-            % PLOT SIMILARITY TO OTHER PATTERNS
-            fill([T2 fliplr(T2)], [to_same_L(stim_L2) fliplr(to_same_U(stim_L2))], 'r', 'edgecolor', 'none'); alpha(0.3);
-            h(2) = plot(T2, to_same_M(stim_L2), 'color', [0.8 0.2 0.2],'linewidth', 2);
-            
-            plot(T2, zeros(1, length(T2)), 'k:'); plot(zeros(length(0:0.01:1), 1), 0:0.01:1, 'k-'); 
-            xlim([min(T2) max(T2)]); ylabel('similarity'); xticklabels({});
-            ylim([min(min([to_same_L(stim_L2) to_diff_L(stim_L2)])) max(max([to_same_U(stim_L2) to_diff_U(stim_L2)]))])
-            legend(h, 'to others', 'to same', 'location','northwest'); 
-            set(ax(6), 'yaxislocation','right'); %title('similarity between patterns');
+        pre_stim_i = win;
+        post_stim_i = par.pre_stim_L*2+par.NC_stim_L-win;
+        for t = 1:par.trials
+            % get pre-stim frequency
+            dPh = PHASE.AL.NC(pre_stim_i:par.pre_stim_L-100);
+            dPh = dPh(2:end) - dPh(1:end-1);
+            % find how many ms per cycle
+            pi_cycle = round((2*pi)/mean(dPh(dPh > 0)));
+            % find how many cycles are needed for desired pre-stim period
+            n_cycles = round((1000/pi_cycle) * (des_pre_stim_sec+1));
+            % create elongated pre-stim period
+            phase_BS = repmat(-pi:(2*pi)/pi_cycle:pi, [1 n_cycles]);
+            % find phase of NC at join
+            phase_at_zero = PHASE.AL.NC(pre_stim_i);
+            x_i = find(phase_at_zero >= phase_BS,1,'last');
+            phase_BS = phase_BS(1:x_i);
+            phase_BS = phase_BS(length(phase_BS)-des_pre_stim_sec*1000+2+(par.pre_stim_L-win):end);
+            % create elongated post-stim period
+            phase_PS = repmat(-pi:(2*pi)/pi_cycle:pi, [1 n_cycles]);
+            % find phase of NC at join
+            phase_at_end = PHASE.AL.NC(post_stim_i);
+            x_i = find(phase_at_end <= phase_PS,1,'first');
+            phase_PS = phase_PS(x_i:end);
+            phase_PS = phase_PS(1:des_pre_stim_sec*1000-(par.pre_stim_L-win));
+            % conjoin elongated pre/post stim periods to trimmed data
+            phase_NC = [phase_BS ... % pre stim
+                PHASE.AL.NC(t, pre_stim_i:post_stim_i) ...% trimmed data
+                phase_PS]; % post stim
+            % recentre over time of first stimuli
+            x1 = patterns_t(b,1) + 1;
+            phase_AL(b, t, :) = phase_NC(t, x1 : x1 + pre_stim_L * 2 - 1);
+            % just extract series aligned with first stimuli for DL
+            phase_DL(b, t, :) = PHASE.DL.NC(t, x1 : x1 + par.pre_stim_L * 2 - 1);
         end
-        
-        %% STIMULUS PATTERNS  
-        if(par.B > 5)
-            B_f = [1 0 round(par.B/2) 0 par.B]; B_x = 5;
-        else
-            B_x = par.B; B_f = 1:par.B;
-        end
-        for b = 1 : B_x
-            subplot(9, 10, b + (n-1)*B_x); hold on;
-            if(mod(b,2)==1 || par.B < 5)
-                for i = 1:length(par.NC_stims_t_all{B_f(b)}{1}{1})
-                   plot(ones(1,2)*((par.NC_stims_t_all{B_f(b)}{1}{1}(i)+par.pre_stim_L)-par.pre_stim_L)/1000, [0 1],'linewidth',3,'color','k'); 
-                end
-                xlim([min(T2)+0.5 max(T2)-0.5]); yticklabels([]); xticklabels([]);
-                if(n == 1); box on; yticks(''); xticks(''); title(['P' int2str(B_f(b))]); else; axis off; end
-            else
-                scatter([0 1 2], [0 0 0], 'ko','filled'); axis off; xlim([-1 3]);
-            end
-        end
-        
-        %% ENCODING / RETRIEVAL COMPARISON
-        if(n==2)
-            ax(8) = subplot(9, 10, [76:80 86:90]); box on;
-            plot(T2, filter(ones(500,1)/500, 1, mean(content_spec(:,stim_L2))), 'color' ,[0.7 0.3 0.3],'linewidth', 2); hold on;
-            xlabel('time (s)'); 
-            plot(T2, zeros(1, length(T2)), 'k:'); xlim([min(T2) max(T2)]);
-            plot(ones(length(-1:0.01:1), 1)*0, -1:0.01:1, 'k-'); 
-            ylim([min(mean(content_spec(:,stim_L2))) max(mean(content_spec(:,stim_L2)))]*1.25);
-            set(ax(8), 'yaxislocation','right'); ylabel('content specificity');
-        end
+        fprintf('\b\b\b\b\b%3.0f%%\n', b/par.B*100)
     end
-    saveas(fig,[filename '/Graphs/content_specificity.jpg']); close(fig);
-    
-else; disp('ANALYSIS REQUIRES SIMULATION OF MULTIPLE PATTERNS')
+    POW.DL = POW.DL / par.B;
+    POW.AL = POW.AL / par.B;
+    save([filename '/Processed Data/power_phase_data.mat'],...
+        'phase_AL','phase_DL', 'POW', 'freq', 'same_trial', 'patterns', 'pre_stim_L')
+    fprintf('\b\b\b\b\bcompleted in %.0f minutes\n', toc/60)
+else
+    fprintf('loading phase & power data\n');
+    load([filename '/Processed Data/power_phase_data.mat'])
 end
 
+%% PHASE ANALYSIS OVER/BETWEEN PATTERNS
+fprintf('\ncalculating content similarity ...\n')
+time = nan(par.B,1); fpr = false; n_trials = par.trials;
+win = 400; % desired window around stimulus times
+win = min(win, pre_stim_L*2 - (pre_stim_L+par.NC_stim_L));
+patterns_i = 1:par.B;
+for b = 1:par.B
+    if(exist([filename '/Processed Data/similarity_data_P' int2str(b) '.mat'],'file')~=2)
+        tic
+        n_sim_patterns = length(same_trial{b});
+        n_diff_patterns = par.B - n_sim_patterns - 1;
+        sim_to_same = nan(n_sim_patterns, par.trials, pre_stim_L*2);
+        sim_to_diff = nan(n_diff_patterns, par.trials, pre_stim_L*2);
+        stim_L = par.pre_stim_L : min(par.pre_stim_L + patterns(b,end) + win, par.pre_stim_L*2);
+        X_L = round(length(stim_L)/2):round((pre_stim_L*2)-length(stim_L)/2);
+        % CALCULATE RSA SIMILARITY BETWEEN PATTERNS
+        for t1 = 1:par.trials % loop through all trials
+            %% TO SAME PATTERNS (TRIAL VARIATION)
+            phase_DL_t = squeeze(phase_DL(b, t1, stim_L))';
+            to_same_t = nan(n_sim_patterns, par.trials, pre_stim_L*2);
+            parfor b2 = 1:n_sim_patterns % loop through all other trials
+                for t2 = 1:n_trials
+                    phase_AL_t = squeeze(phase_AL(same_trial{b}(b2), t2, :))';
+                    to_same_t( b2, t2, X_L) = phase_compare( phase_AL_t, phase_DL_t );
+                end
+            end
+            sim_to_same(:, t1, :) = squeeze(nanmean(to_same_t, 2)); clear to_same_t;
+            
+            %% TO DIFFERENT PATTERNS MEAN (PATTERN VARIATION)
+            to_diff_t = nan(n_diff_patterns, par.trials, pre_stim_L*2);
+            diff_trial = patterns_i(~ismember(patterns_i,same_trial{b}));
+            diff_trial = diff_trial(diff_trial ~= b);
+            parfor b2 = 1:n_diff_patterns %loop through all other patterns
+                for t2 = 1:n_trials % loop through all trials
+                    phase_AL_t = squeeze(phase_AL(diff_trial(b2), t2, :))';
+                    to_diff_t( b2, t2, X_L ) = phase_compare( phase_AL_t, phase_DL_t );
+                end
+            end
+            sim_to_diff(:, t1, :) = squeeze(nanmean(to_diff_t, 2)); clear to_diff_t;
+        end
+        if(n_sim_patterns ~= 0); sim_to_same = ...
+                reshape(squeeze(nanmean(sim_to_same,2)),[n_sim_patterns pre_stim_L*2]);
+        else; sim_to_same = nan(1, pre_stim_L*2);
+        end
+        if(n_diff_patterns ~= 0); sim_to_diff = ...
+                reshape(squeeze(nanmean(sim_to_diff,2)),[n_diff_patterns pre_stim_L*2]);
+        else; sim_to_diff = nan(1, pre_stim_L*2);
+        end
+        %% extract similarity based on conditions
+        sim_to_same_cond = struct;
+        sim_to_diff_cond = struct;
+        content_spec_cond = struct;
+        for c = 1:length(conditions_n)
+            x_i = find(conditions{c});
+            sim_to_same_cond.([conditions_n{c}]) = nanmean(sim_to_same(ismember(same_trial{b}, x_i), :), 1);
+            not_sim_to_same = sim_to_same(~ismember(same_trial{b}, x_i), :);
+            if(isnan(not_sim_to_same)); sim_to_diff_cond.([conditions_n{c}]) = nanmean(sim_to_diff,1);
+            else; sim_to_diff_cond.([conditions_n{c}]) = nanmean([sim_to_diff; not_sim_to_same],1);
+            end
+            content_spec_cond.([conditions_n{c}]) = sim_to_same_cond.([conditions_n{c}]) - sim_to_diff_cond.([conditions_n{c}]);
+        end
+        sim_to_same = nanmean(sim_to_same, 1);
+        sim_to_diff = nanmean(sim_to_diff, 1);
+        content_spec = sim_to_same - sim_to_diff;
+        % RECORD VARIABLES
+        save([filename '/Processed Data/similarity_data_P' int2str(b) '.mat'], ...
+            'sim_to_same', 'sim_to_diff', 'content_spec', ...
+            'sim_to_same_cond', 'sim_to_diff_cond', 'content_spec_cond');
+        
+        B = dir([filename '/Processed Data']);
+        B_rem = par.B - sum(contains({B(:).name}, 'similarity_data'));
+        time(b) = toc;
+        min_rem = (nanmean(time)/60) * B_rem;
+        H = floor(min_rem/60);
+        M = floor(min_rem - H*60);
+        per_done = (par.B-B_rem)/par.B*100;
+        if(~fpr); fprintf('\b\b\b\b%3.0f%% time remaining %2.0fh %2.0fm\n', per_done, H, M); fpr = true;
+        else; fprintf('\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b%3.0f%% time remaining %2.0fh %2.0fm\n', per_done, H, M);
+        end
+    end
+end
+
+if(exist([filename '/Processed Data/similarity_data_all.mat'],'file')~=3)
+    fprintf('\ncollating data ... \n', b, par.B)
+    for b = 1:par.B
+        fprintf('\b\b\b\b\b%3.0f%%\n', b/par.B*100)
+        load([filename '/Processed Data/similarity_data_P' int2str(b) '.mat'])
+        if(b==1)
+            content_spec_all = nan(par.B, size(sim_to_same,2));
+            sim_to_same_all = nan(par.B, size(sim_to_same,2));
+            sim_to_diff_all = nan(par.B, size(sim_to_same,2));
+        end
+        sim_to_same_all(b,:) = sim_to_same;
+        sim_to_diff_all(b,:) = sim_to_diff;
+        content_spec_all(b,:) = content_spec;
+    end
+    T = -size(content_spec_all,2)/2+1:size(content_spec_all,2)/2;
+    T1 = find(T >= -1000,1,'first');
+    T2 = find(T >= -250,1,'first');
+    pre_s = mean(sim_to_same_all(:,T1:T2),2);
+    sim_to_same_all = sim_to_same_all - pre_s;
+    pre_s = mean(sim_to_diff_all(:,T1:T2),2);
+    sim_to_diff_all = sim_to_diff_all - pre_s;
+
+    save([filename '/Processed Data/similarity_data_all.mat'], ...
+        'sim_to_same_all', 'content_spec_all', 'sim_to_diff_all', 'T');
+end
 
 end
 

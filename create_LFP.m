@@ -1,13 +1,13 @@
-function [ LFP ] = create_LFP(spikes, ns, hann_on, sample_on, pband, sim_length, d_T )
+function [ LFP ] = create_LFP(spikes, hann_on, sample_on, pband, sim_length, d_T )
 
-
+    spikes(:,1) = spikes(:,1) - min(spikes(:,1)) + 1;
     T = 0:d_T:sim_length;
     sim_L = round(sim_length / d_T);
-    MUA = zeros(ns, sim_L);
+   
     spikes(:,2) = round(spikes(:,2) / d_T);
-    
-    for m=1:size(spikes,1)
-        MUA(spikes(m,1), spikes(m,2))=MUA(spikes(m,1), spikes(m,2))+1;
+    MUA = zeros(max(spikes(:,1)), sim_L);
+    for i=1:size(spikes,1)
+       MUA(spikes(i,1),spikes(i,2)) = MUA(spikes(i,1),spikes(i,2)) + 1; 
     end
     
     MUA_PSP = zeros(size(MUA,1),size(MUA,2));

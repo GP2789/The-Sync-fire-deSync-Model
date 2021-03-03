@@ -1,4 +1,4 @@
-function [] = set_parameters( )
+function [ par ] = set_parameters( par )
 %% HOW TO READ THIS SCRIPT
 % REGION = NC: neo-cortex; 
 %          BP: binding pool; 
@@ -43,15 +43,19 @@ function [] = set_parameters( )
 % heterosynaptic STDP that are not used in the submitted simulations. 
 
 %% SET PARAMETER SPACE FUNCTION
-     global par;
-     if(isempty(par)==1)
-        par = struct;
-     end
+%      global par;
+%      if(isempty(par)==1)
+%         par = struct;
+%      end
 
     %% CHOOSE PARAMETERS
     parameter_settings = ...
+        ... %%%% REGION PARAMETERS %%%% 
+        {'sim_order', {'learning', 'recall'}, ...
+        'sim_order_n', {'DL','AL'}, ...
+        'nG', {'TC','BP','NC'}, ...
         ... %%%% NEURONS PARAMETERS %%%%
-        {'model_type', 'HH', 'V_m_initial', -60, ...
+        'model_type', 'HH', 'V_m_initial', -60, ...
         'attractor', 0.5, 'T_WC', 50, 'C_D', 13, ...
         'TC_L1_BP_NM', 0.011, 'TC_L2_BP_NM', 0.028, 'BP_NC_NM', 2,...
         'T_pre_F', 20, 'T_post_F', 20, ...
@@ -63,15 +67,9 @@ function [] = set_parameters( )
         ... % FS E ->
         'NC_EE_TS', 1.5, 'NC_EE_R', 100, 'NC_EE_W', 1, 'NC_EE_top', 'NN_O', 'NC_EE_cos', 1, 'NC_EE_D', 2,...
         'NC_EI_TS', 5, 'NC_EI_R', 100, 'NC_EI_W', 1, 'NC_EI_top', 'NN_O', 'NC_EI_cos', 1, 'NC_EI_D', 2,... 
-        'NC_EO_TS', 5, 'NC_EO_R', 100, 'NC_EO_W', 0.1, 'NC_EO_top', 'normal', 'NC_EO_cos', 1, 'NC_EO_D', 2,... 
         ... % FS I ->
         'NC_IE_TS', 12.5, 'NC_IE_R', 100, 'NC_IE_W', -1.25, 'NC_IE_top', 'FN_O', 'NC_IE_cos', 1, 'NC_IE_D', 2,...
         'NC_II_TS', 5, 'NC_II_R', 100, 'NC_II_W', -1.25, 'NC_II_top', 'FN_O', 'NC_II_cos', 1, 'NC_II_D', 2,...
-        'NC_IO_TS', 5, 'NC_IO_R', 0, 'NC_IO_W', 0, 'NC_IO_top', 'FN_O', 'NC_IO_cos', 1, 'NC_IO_D', 2,...
-        ... % OLM ->
-        'NC_OE_TS', 25, 'NC_OE_R', 100, 'NC_OE_W', -0.15, 'NC_OE_top', 'normal', 'NC_OE_cos', 3, 'NC_OE_D', 2,...
-        'NC_OI_TS', 5, 'NC_OI_R', 0, 'NC_OI_W', 0, 'NC_OI_top', 'FN_O', 'NC_OI_cos', 1, 'NC_OI_D', 2,...
-        'NC_OO_TS', 5, 'NC_OO_R', 0, 'NC_OO_W', 0, 'NC_OO_top', 'FN_O', 'NC_OO_cos', 1, 'NC_OO_D', 2,...
         ... % NC -> NC
         'NC_NC_TS', 1.5, 'NC_NC_R', 0, 'NC_NC_W', 0, 'NC_NC_D', 2, 'NC_NC_LR', 0, ...
         ... %%%%%%% BINDING POOL %%%%%%%%
@@ -132,15 +130,16 @@ function [] = set_parameters( )
         'TC_L1_BP_R', 100, 'TC_L1_BP_W_max', 0, 'TC_L1_BP_W_ini', 0, 'TC_L1_BP_W_sigma', 0.01, 'TC_L1_BP_D', 1, 'TC_L1_BP_TS', 20, ...
         'TC_L2_BP_R', 100, 'TC_L2_BP_W_max', 0, 'TC_L2_BP_W_ini', 0, 'TC_L2_BP_W_sigma', 0.01, 'TC_L2_BP_D', 1, 'TC_L2_BP_TS', 1.5, ...
         ... %%% STIMULUS PRESENTATION PARAMETERS %%%
-        'TC_pre_stim_L', 2050, 'TC_stim_L', 10, ... % pre stim & stim length of TC burst
+        'TC_pre_stim_L', 1050, 'TC_stim_L', 10, ... % pre stim & stim length of TC burst
         'TC_stim_W', 0.15, ... % weight of DC burst into TC cell(s) 
         'TC_stim_N', 1, ... % number of cells DC burst fed into
         'NC_n_stim', 3, ... % number of events
         'NC_stim_N_cos', 1.5, ... % width of gaussian kernel around randomly selected neuron
-        'NC_pre_stim_L', 2500, ... % length of pre-stim period before events (ms)
+        'NC_pre_stim_L', 1500, ... % length of pre-stim period before events (ms)
         'NC_stim_L', 1500, ... % time over which events are randomly interspersed (ms)
         'NC_stim_type', 'gamma', 'NC_stim_tau', 60, ... % spikes multiplied by gamma curve
         'NC_stim_BG', 1000, 'NC_stim_TS', 1.5, 'NC_stim_W', 3}; % event spike input parameters
+    
    
     % SET PARAMETERS IF NOT ALREADY SUPPLIED
     for i=1:length(parameter_settings)/2
@@ -165,11 +164,6 @@ function [] = set_parameters( )
         
         par.c_m = 1; par.d_T = 0.01;
     end
-    
-    %% ORDER OF THE SIMULATION
-    par.sim_order = {'learning','recall'}; % simulate learning / recall 
-    par.sim_order_n = {'DL','AL'}; % during learning / after learning
-    par.nG = {'TC','BP','NC'}; % include which regions
     
     %% DEFINE POPULATION SIZES BASED ON PARAMETERS
     par.network_size = 0;

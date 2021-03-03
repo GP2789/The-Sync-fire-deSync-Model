@@ -1,9 +1,10 @@
-function [ ] = STDP( spikes, t, last_spikes )
+function [ weight_matrix, p_w, calcium ] = STDP( spikes, t, last_spikes, weight_matrix, wm_max, weight_matrix_STDP, ...
+    p_w, p_STDP, par, calcium )
 %STDP Summary of this function goes here
 %   Detailed explanation goes here
 %% GLOBALS
-global weight_matrix; global wm_max; global weight_matrix_STDP;
-global p_w; global p_STDP; global par; global calcium; 
+%global weight_matrix; global wm_max; global weight_matrix_STDP;
+%global p_w; global p_STDP; global par; global calcium; 
 
 %% CALCIUM ADDITION
 if(isempty(spikes) ~= 1)

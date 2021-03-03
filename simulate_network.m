@@ -1,12 +1,13 @@
-function [ sim_stats, sim_time, stop ] = simulate_network( filename, timer )
+function [ sim_stats, sim_time, time ] = simulate_network( filename, timer, ...
+    par, I, weight_matrix, weight_matrix_STDP, tau_syn, wm_max, delay)
 %SIMULATE_NETWORK Summary of this function goes here
 %   Detailed explanation goes here
 tic;
 %% DECLARATIONS & INITIALISATIONS
-global par; global V_m; global I;
-global weight_matrix; global ADP;
-global tau_syn; global calcium; global weight_matrix_STDP; global p_w;
-global delay; global wm_max; global p_STDP; 
+%global par; global V_m; global I;
+%global weight_matrix; %global ADP;
+%global tau_syn; global calcium; global weight_matrix_STDP; global p_w;
+%global delay; global wm_max; global p_STDP; 
 
 p_w = (weight_matrix./wm_max).*weight_matrix_STDP; % assign & normalise weights 0-1(max)
 p_w(isnan(p_w)==1) = 0;
@@ -27,7 +28,7 @@ else
 end
 spikes_t = [];
 %% SET NEURON PROPERTIES BASED ON PARAMETERS
-h1 = waitbar(0, 'Simulating Network', 'Units', 'normalized', 'Position', [0.5 0.1 0.2 0.1]);
+%h1 = waitbar(0, 'Simulating Network', 'Units', 'normalized', 'Position', [0.5 0.1 0.2 0.1]);
 last_spikes = zeros(par.network_size, 1);
 V_m = zeros(par.network_size,1);
 I.L = zeros(par.network_size, par.sim_length);
@@ -163,7 +164,8 @@ for t=1:par.sim_length/par.d_T
     
         %% STDP LEARNING
         if(strcmp('on', timer)==1); sim_time.STDP_weights(x) = cputime; end
-        STDP( spikes_t, x, last_spikes ); 
+        [ weight_matrix, p_w, calcium ] = STDP( spikes_t, x, last_spikes, weight_matrix, wm_max, weight_matrix_STDP, ...
+            p_w, p_STDP, par, calcium ); 
         last_spikes( spikes_t ) = x; spikes_t = []; clear('spikes');
         if(strcmp('on', timer)==1); sim_time.STDP_weights(x) = cputime-sim_time.STDP_weights(x); sim_time.make_simdata(x) = cputime; end
 
@@ -184,9 +186,12 @@ for t=1:par.sim_length/par.d_T
         if(strcmp('on', timer)==1); sim_time.make_simdata(x) = cputime - sim_time.make_simdata(x); end
     end
     
-    if(rem(t, 10/par.d_T) == 0); waitbar(t/(par.sim_length/par.d_T), h1); end
+%     if(rem(t, 10/par.d_T) == 0)
+%         fprintf('\b\b\b\b\b%3.0f%%\n', t/(par.sim_length/par.d_T)*100);
+%         %waitbar(t/(par.sim_length/par.d_T), h1); 
+%     end
 end
-close(h1)
+%close(h1)
 if(stop ~=1)
 %% SAVE SIMULATION DATA
 if(strcmp('on', timer)==1); sim_time.make_simdata(t+1) = cputime; end
@@ -203,11 +208,11 @@ sim_stats.TS = tau_syn; clear('tau_syn');
 sim_stats.WM_p = p_w; clear('p_w'); 
 c = 0;
 
-sim_stats.V_m = V_m_t;
-sim_stats.I.L = I.L;
-sim_stats.I.SYN = I.SYN;
-if(strcmp(par.model_type,'HH')==1); sim_stats.I.Na = I.Na; sim_stats.I.K = I.K; 
-if(isempty(OLM)~=1); sim_stats.I.h = I.h; sim_stats.I.p = I.p; end; end
+% sim_stats.V_m = V_m_t;
+% sim_stats.I.L = I.L;
+% sim_stats.I.SYN = I.SYN;
+% if(strcmp(par.model_type,'HH')==1); sim_stats.I.Na = I.Na; sim_stats.I.K = I.K; 
+% if(isempty(OLM)~=1); sim_stats.I.h = I.h; sim_stats.I.p = I.p; end; end
 clear('V_m'); clear('V_m_t'); clear('I');
 
 %% TIMERS
@@ -244,5 +249,7 @@ if(strcmp('on', timer)==1)
 end
 
 end
+time = toc;
+%fprintf('\b\b\b\b\bcompleted in %1.0fm %1.0fs\n', floor(time/60), time - floor(time/60)*60)
 end
 
